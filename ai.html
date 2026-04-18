@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Tic Tac Toe: AI Overlord</title>
+    <style>
+        :root {
+            --bg-color: #0a0b10;
+            --grid-line: #1f2232;
+            --neon-blue: #00f2ff;
+            --neon-pink: #ff007b;
+            --neon-green: #39ff14;
+            --glass: rgba(255, 255, 255, 0.05);
+            --text: #e0e0e0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text);
+            font-family: 'Orbitron', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .controls {
+            background: var(--glass);
+            padding: 15px 25px;
+            border-radius: 10px;
+            border: 1px solid var(--grid-line);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        select, button, .nav-link {
+            background: #161b22;
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: 0.3s;
+        }
+
+        select:hover, button:hover, .nav-link:hover {
+            box-shadow: 0 0 10px var(--neon-blue);
+            background: var(--neon-blue);
+            color: #000;
+        }
+
+        #status {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            height: 30px;
+            letter-spacing: 1px;
+        }
+
+        .turn-x { color: var(--neon-blue); text-shadow: 0 0 8px var(--neon-blue); }
+        .turn-o { color: var(--neon-pink); text-shadow: 0 0 8px var(--neon-pink); }
+
+        .ultimate-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            padding: 15px;
+            background: var(--glass);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .small-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            position: relative;
+            transition: 0.3s;
+        }
+
+        .small-board.active {
+            box-shadow: 0 0 15px var(--neon-blue);
+            background: rgba(0, 242, 255, 0.1);
+        }
+
+        .small-board.won-x::after, .small-board.won-o::after {
+            content: 'X';
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+            font-weight: bold;
+            z-index: 10;
+            background: rgba(10, 11, 16, 0.8);
+            border-radius: 6px;
+        }
+        .small-board.won-x::after { content: 'X'; color: var(--neon-blue); }
+        .small-board.won-o::after { content: 'O'; color: var(--neon-pink); }
+
+        .cell {
+            width: 45px;
+            height: 45px;
+            background: var(--grid-line);
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+            border-radius: 3px;
+        }
+
+        .cell:hover:not(:disabled) { background: #2d324a; }
+        .cell.x { color: var(--neon-blue); }
+        .cell.o { color: var(--neon-pink); }
+        
+        .thinking {
+            color: var(--neon-green);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse { 0% {opacity: 1;} 50% {opacity: 0.3;} 100% {opacity: 1;} }
+    </style>
+</head>
+<body>
+
+    <h1 style="text-shadow: 0 0 10px var(--neon-blue);">ULTIMATE TTT</h1>
+
+    <div class="controls">
+        <a href="index.html" class="nav-link">🏠 Home</a>
+        <div>
+            Mode: 
+            <select id="gameMode" onchange="initGame()">
+                <option value="pvp">Local PvP</option>
+                <option value="pvc">vs CPU</option>
+            </select>
+        </div>
+        <div id="diffContainer" style="display:none;">
+            Level: 
+            <select id="difficulty">
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+            </select>
+        </div>
+        <button onclick="initGame()">Restart Game</button>
+    </div>
+
+    <div id="status">Initializing...</div>
+    <div class="ultimate-board" id="game-board"></div>
+
+    <script>
+        let currentPlayer = 'X', activeBoardIndex = null, bigBoardStatus = Array(9).fill(null);
+        let fullBoardData = Array(9).fill(null).map(() => Array(9).fill(null)), isGameOver = false;
+
+        const boardEl = document.getElementById('game-board'), statusEl = document.getElementById('status');
+        const modeEl = document.getElementById('gameMode'), diffEl = document.getElementById('difficulty'), diffCont = document.getElementById('diffContainer');
+
+        function initGame() {
+            currentPlayer = 'X'; activeBoardIndex = null; isGameOver = false;
+            bigBoardStatus = Array(9).fill(null);
+            fullBoardData = Array(9).fill(null).map(() => Array(9).fill(null));
+            diffCont.style.display = modeEl.value === 'pvc' ? 'block' : 'none';
+            render(); updateStatus();
+        }
+
+        function render() {
+            boardEl.innerHTML = '';
+            for (let b = 0; b < 9; b++) {
+                const sBoard = document.createElement('div');
+                sBoard.className = 'small-board';
+                if (bigBoardStatus[b]) sBoard.classList.add(`won-${bigBoardStatus[b].toLowerCase()}`);
+                if (!isGameOver && !bigBoardStatus[b] && (activeBoardIndex === null || activeBoardIndex === b)) sBoard.classList.add('active');
+
+                for (let c = 0; c < 9; c++) {
+                    const cell = document.createElement('button');
+                    cell.className = 'cell';
+                    const val = fullBoardData[b][c];
+                    if (val) { cell.innerText = val; cell.classList.add(val.toLowerCase()); }
+                    if (isGameOver || val || bigBoardStatus[b] || (activeBoardIndex !== null && activeBoardIndex !== b)) cell.disabled = true;
+                    cell.onclick = () => handleMove(b, c);
+                    sBoard.appendChild(cell);
+                }
+                boardEl.appendChild(sBoard);
+            }
+        }
+
+        async function handleMove(b, c) {
+            executeMove(b, c);
+            if (!isGameOver && modeEl.value === 'pvc' && currentPlayer === 'O') {
+                statusEl.innerHTML = `<span class="thinking">CPU processing...</span>`;
+                await new Promise(r => setTimeout(r, 600));
+                makeCpuMove();
+            }
+        }
+
+        function executeMove(b, c) {
+            fullBoardData[b][c] = currentPlayer;
+            if (checkWin(fullBoardData[b])) bigBoardStatus[b] = currentPlayer;
+            else if (!fullBoardData[b].includes(null)) bigBoardStatus[b] = 'D';
+
+            const winner = checkWin(bigBoardStatus);
+            if (winner) {
+                isGameOver = true; render();
+                statusEl.innerHTML = `WINNER: <span class="turn-${winner.toLowerCase()}">${winner}</span>`;
+                return;
+            }
+            activeBoardIndex = (bigBoardStatus[c] !== null) ? null : c;
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            render(); updateStatus();
+        }
+
+        function checkWin(b) {
+            const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+            for (let [x,y,z] of lines) if (b[x] && b[x]!=='D' && b[x]===b[y] && b[x]===b[z]) return b[x];
+            return null;
+        }
+
+        function updateStatus() { if (!isGameOver) statusEl.innerHTML = `Player <span class="turn-${currentPlayer.toLowerCase()}">${currentPlayer}</span> turn`; }
+
+        function makeCpuMove() {
+            const moves = [];
+            for (let b=0; b<9; b++) {
+                if (activeBoardIndex !== null && activeBoardIndex !== b) continue;
+                if (bigBoardStatus[b]) continue;
+                for (let c=0; c<9; c++) if (!fullBoardData[b][c]) moves.push({b, c});
+            }
+            let move = moves[Math.floor(Math.random() * moves.length)]; // Default: Easy
+            if (diffEl.value !== 'easy') {
+                for (let m of moves) { // Medium/Hard logic: Take win
+                    let t = [...fullBoardData[m.b]]; t[m.c] = 'O';
+                    if (checkWin(t)) { move = m; break; }
+                }
+            }
+            if (move) executeMove(move.b, move.c);
+        }
+        initGame();
+    </script>
+</body>
+</html>
